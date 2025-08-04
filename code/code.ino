@@ -176,11 +176,39 @@ void setup (){
 
 void loop (){
     myHello = myHello + 1;
-    // Serial.println("hello," + String(myHello));
-    if(digitalRead(12) == LOW){
-        Serial.println("Button pressed");
-        poopExplode = true; // Set flag for explosion
-    } else if(digitalRead(13) == LOW){
+    static bool lastButtonState = HIGH;
+    static unsigned long lastDebounceTime = 0;
+    static int buttonPressCount = 0;
+    const unsigned long debounceDelay = 50; // ms
+    const unsigned long pressTimeout = 600; // ms, max time between double press
+
+    int reading = digitalRead(12);
+
+    if (reading != lastButtonState) {
+        lastDebounceTime = millis();
+    }
+
+    if ((millis() - lastDebounceTime) > debounceDelay) {
+        // Button press detected (active low)
+        if (lastButtonState == HIGH && reading == LOW) {
+            buttonPressCount++;
+            if (buttonPressCount == 1) {
+                lastDebounceTime = millis(); // Start timeout for double press
+            }
+        }
+        // Check for double press
+        if (buttonPressCount > 0 && (millis() - lastDebounceTime) > pressTimeout) {
+            if (buttonPressCount == 2) {
+                Serial.println("Double press detected, toggling explosion!");
+                poopExplode = true; // Set flag for explosion
+            }
+            buttonPressCount = 0; // Reset counter
+        }
+    }
+    lastButtonState = reading;
+
+    // Light control code (unchanged)
+    if(digitalRead(13) == LOW){
         if(light == false) {
             light = true;
             digitalWrite(2, HIGH); // Turn on light
