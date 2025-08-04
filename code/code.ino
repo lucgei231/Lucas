@@ -14,119 +14,136 @@ int myHello = 0;
 bool poopExplode = false; // Add flag for poop explosion
 WebServer server(80);
 
+// Add global variables for STA connection
+bool staConnected = false;
+String staSSID = "";
+String staPASS = "";
+
+// Add a handler for the connect-to-internet form
+void handleConnectInternet() {
+    String html = R"rawliteral(
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Connect to Internet</title>
+        <style>
+            body { background: #e0f7fa; font-family: Arial, sans-serif; text-align: center; }
+            .formbox { margin: 40px auto; background: #fff; border-radius: 10px; padding: 30px; box-shadow: 0 2px 8px #bbb; display: inline-block; }
+            input, button { font-size: 1.2em; margin: 10px; padding: 8px 20px; border-radius: 8px; border: 1px solid #0277bd; }
+            button { background: #0277bd; color: #fff; border: none; }
+            button:active { background: #015a7a; }
+        </style>
+    </head>
+    <body>
+        <div class="formbox">
+            <h2>Connect ESP32 to Internet</h2>
+            <form action="/connectinternet" method="POST">
+                <input name="ssid" placeholder="WiFi SSID" required><br>
+                <input name="pass" type="password" placeholder="WiFi Password"><br>
+                <button type="submit">Connect</button>
+            </form>
+            <br>
+            <button onclick="window.location.href='/'">Back</button>
+        </div>
+    </body>
+    </html>
+    )rawliteral";
+    server.send(200, "text/html", html);
+}
+
+void handleConnectInternetPost() {
+    if (server.hasArg("ssid")) {
+        staSSID = server.arg("ssid");
+        staPASS = server.arg("pass");
+        WiFi.softAPdisconnect(true);
+        delay(500);
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.begin(staSSID.c_str(), staPASS.c_str());
+        unsigned long startAttempt = millis();
+        staConnected = false;
+        while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 10000) {
+            delay(500);
+        }
+        staConnected = (WiFi.status() == WL_CONNECTED);
+        // Restart AP for clients
+        WiFi.softAP(ap_ssid, ap_password);
+        delay(100);
+        IPAddress myIP = WiFi.softAPIP();
+        dnsServer.start(DNS_PORT, "*", myIP);
+    }
+    server.sendHeader("Location", "/", true);
+    server.send(302, "text/plain", "");
+}
+
 void handleRoot() {
     String message = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>🤖 Robot Party 🤖</title>
+    <title>ESP32 Robot Control Panel</title>
     <style>
-        body {
-            background: #e0f7fa;
-            text-align: center;
-            font-family: 'Comic Sans MS', cursive, sans-serif;
-        }
-        .robot {
-            font-size: 5em;
-            display: inline-block;
-            animation: dance 1s infinite alternate;
-            cursor: pointer;
-        }
-        .robotination {
-            position: absolute;
-            animation: floatbot 4s linear infinite;
-            pointer-events: none;
-        }
-        .robotination.small { font-size: 2em; animation-duration: 3s;}
-        .robotination.medium { font-size: 3em; animation-duration: 4.5s;}
-        .robotination.large { font-size: 4em; animation-duration: 6s;}
-        @keyframes dance {
-            0% { transform: translateY(0) rotate(-10deg);}
-            100% { transform: translateY(-40px) rotate(10deg);}
-        }
-        @keyframes floatbot {
-            0% { top: 90vh; left: 10vw; opacity: 0.7; }
-            25% { left: 30vw; }
-            50% { top: 40vh; left: 60vw; opacity: 1; }
-            75% { left: 80vw; }
-            100% { top: 0vh; left: 90vw; opacity: 0.5; }
-        }
-        .counter {
-            font-size: 2em;
-            color: #0277bd;
-            margin-top: 20px;
-        }
-        .bunny {
-            font-size: 2em;
-            margin-top: 20px;
-            animation: wiggle 0.5s infinite alternate;
-        }
-        @keyframes wiggle {
-            0% { transform: rotate(-5deg);}
-            100% { transform: rotate(5deg);}
-        }
-        .robotain {
-            position: fixed;
-            pointer-events: none;
-            left: 0; top: 0; width: 100vw; height: 100vh; z-index: 0;
-        }
+        body { background: #e0f7fa; font-family: Arial, sans-serif; text-align: center; }
+        h1 { color: #0277bd; }
+        .info { margin: 20px auto; display: inline-block; text-align: left; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px #bbb; }
+        .info td { padding: 6px 12px; }
+        .btn { font-size: 1.2em; margin: 10px; padding: 10px 30px; border-radius: 8px; border: none; background: #0277bd; color: #fff; cursor: pointer; }
+        .btn:active { background: #015a7a; }
+        .status-on { color: green; font-weight: bold; }
+        .status-off { color: red; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div class="robot" id="robot">🤖</div>
-    <div class="bunny">[::] <br> (•_•) <br> /|\\ <br> / \\</div>
-    <div class="counter">Robot counter: <span id="counter">0</span></div>
-    <div>Let's dance, robots! 🤖</div>
-    <div class="robotain" id="robotain"></div>
+    <h1>ESP32 Robot Control Panel</h1>
+    <div class="info">
+        <table>
+            <tr><td><b>Light State:</b></td><td><span id="lightState">%LIGHTSTATE%</span></td></tr>
+            <tr><td><b>myHello Counter:</b></td><td><span id="myHello">%MYHELLO%</span></td></tr>
+            <tr><td><b>Button 12 (Double Press):</b></td><td><span id="btn12">%BTN12%</span></td></tr>
+            <tr><td><b>Button 13 (Toggle Light):</b></td><td><span id="btn13">%BTN13%</span></td></tr>
+            <tr><td><b>Explosion Pending:</b></td><td><span id="explosion">%EXPLODE%</span></td></tr>
+            <tr><td><b>Uptime (s):</b></td><td><span id="uptime">%UPTIME%</span></td></tr>
+            <tr><td><b>AP IP Address:</b></td><td><span id="ip">%IP%</span></td></tr>
+            <tr><td><b>Internet Status:</b></td><td><span id="sta">%STA%</span></td></tr>
+        </table>
+    </div>
+    <div>
+        <button class="btn" onclick="toggleLight()">Toggle Light</button>
+        <button class="btn" onclick="triggerExplosion()">Trigger Explosion</button>
+        <button class="btn" onclick="location.reload()">Refresh</button>
+        <button class="btn" onclick="window.location.href='/connectinternet'">Connect to Internet</button>
+    </div>
     <script>
-        let count = %COUNT%;
-        function updateCounter() {
-            document.getElementById('counter').textContent = count++;
+        function toggleLight() {
+            fetch('/togglelight', {method: 'POST'}).then(() => setTimeout(()=>location.reload(), 300));
         }
-        setInterval(updateCounter, 1000);
-        updateCounter();
-        // Make the robot spin on click
-        document.getElementById('robot').onclick = function() {
-            this.style.transition = "transform 0.5s";
-            this.style.transform += " rotate(360deg)";
-        };
-
-        // Robotinations: floating robots
-        function randomRobotination() {
-            const bot = document.createElement('div');
-            const sizes = ['small', 'medium', 'large'];
-            bot.className = 'robotination ' + sizes[Math.floor(Math.random()*sizes.length)];
-            bot.style.left = Math.floor(Math.random()*90) + 'vw';
-            bot.style.top = '90vh';
-            // Randomly pick a robot emoji for more fun
-            const robots = ['🤖','🦾','🦿','🔧','⚙️','🤖'];
-            bot.textContent = robots[Math.floor(Math.random()*robots.length)];
-            document.getElementById('robotain').appendChild(bot);
-            setTimeout(() => bot.remove(), 6000);
+        function triggerExplosion() {
+            fetch('/triggerexplosion', {method: 'POST'}).then(() => setTimeout(()=>location.reload(), 300));
         }
-        setInterval(randomRobotination, 700);
-
-        // Initial burst of robotinations
-        for(let i=0;i<5;i++) setTimeout(randomRobotination, i*400);
-
-        // Robot dance explosion function
-        function robotExplosion() {
-            for(let i=0;i<50;i++) setTimeout(randomRobotination, Math.random()*1000);
-        }
-
-        // Poll for robot explosion
-        setInterval(() => {
-            fetch('/poopstatus')
-                .then(r => r.json())
-                .then(j => { if(j.poopExplode) robotExplosion(); });
-        }, 500);
     </script>
 </body>
 </html>
 )rawliteral";
-    message.replace("%COUNT%", String(myHello));
+    message.replace("%LIGHTSTATE%", light ? "<span class='status-on'>ON</span>" : "<span class='status-off'>OFF</span>");
+    message.replace("%MYHELLO%", String(myHello));
+    message.replace("%BTN12%", digitalRead(12) == LOW ? "PRESSED" : "Released");
+    message.replace("%BTN13%", digitalRead(13) == LOW ? "PRESSED" : "Released");
+    message.replace("%EXPLODE%", poopExplode ? "YES" : "NO");
+    message.replace("%UPTIME%", String(millis() / 1000));
+    message.replace("%IP%", WiFi.softAPIP().toString());
+    message.replace("%STA%", staConnected ? "<span class='status-on'>Connected</span>" : "<span class='status-off'>Not Connected</span>");
     server.send(200, "text/html", message);
+}
+
+// Add handlers for the new buttons
+void handleToggleLight() {
+    light = !light;
+    digitalWrite(2, light ? HIGH : LOW);
+    server.send(200, "text/plain", "OK");
+}
+void handleTriggerExplosion() {
+    poopExplode = true;
+    server.send(200, "text/plain", "OK");
 }
 
 void handlePoopStatus() {
@@ -164,6 +181,10 @@ void setup (){
     // Register handler and start server after WiFi connects
     server.on("/", handleRoot);
     server.on("/poopstatus", handlePoopStatus);
+    server.on("/togglelight", HTTP_POST, handleToggleLight);
+    server.on("/triggerexplosion", HTTP_POST, handleTriggerExplosion);
+    server.on("/connectinternet", HTTP_GET, handleConnectInternet);
+    server.on("/connectinternet", HTTP_POST, handleConnectInternetPost);
 
     // Captive portal: redirect all unknown URLs to root
     server.onNotFound([]() {
@@ -213,10 +234,12 @@ void loop (){
             light = true;
             digitalWrite(2, HIGH); // Turn on light
             Serial.println("Light turned ON");
+            delay(1000);
         } else {
             light = false;
             digitalWrite(2, LOW); // Turn off light
             Serial.println("Light turned OFF");
+            delay(1000);
         }
     }
     if (light == true) {
