@@ -227,8 +227,7 @@ void loop (){
         }
     }
     lastButtonState = reading;
-
-    
+   
     // Light control code (unchanged)
     if(digitalRead(13) == LOW){
         if(light == false) {
