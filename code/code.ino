@@ -15,9 +15,9 @@ bool poopExplode = false; // Add flag for poop explosion
 WebServer server(80);
 
 // Add global variables for STA connection
-bool staConnected = false;
-String staSSID = "";
-String staPASS = "";
+bool staConnected = true;
+String staSSID = "mypotato";
+String staPASS = "mypotato";
 
 // Add a handler for the connect-to-internet form
 void handleConnectInternet() {
