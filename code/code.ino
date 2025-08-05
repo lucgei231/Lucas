@@ -201,72 +201,56 @@ void setup (){
 
 void loop (){
     myHello = myHello + 1;
-    static bool lastButtonState = HIGH;
-    static unsigned long lastDebounceTime = 0;
-    static int buttonPressCount = 0;
+    static bool lastButton12State = HIGH;
+    static bool lastButton13State = HIGH;
+    static unsigned long lastDebounce12 = 0;
+    static unsigned long lastDebounce13 = 0;
     const unsigned long debounceDelay = 50; // ms
-    const unsigned long pressTimeout = 600; // ms, max time between double press
 
-    int reading = digitalRead(12);
+    int reading12 = digitalRead(12);
+    int reading13 = digitalRead(13);
 
-    if (reading != lastButtonState) {
-        lastDebounceTime = millis();
+    // Button 12: spin servo left (0 deg)
+    if (reading12 != lastButton12State) {
+        lastDebounce12 = millis();
     }
+    if ((millis() - lastDebounce12) > debounceDelay) {
+        if (lastButton12State == HIGH && reading12 == LOW) {
+            myServo.write(0);
+            Serial.println("Servo LEFT (0 deg)");
+        }
+    }
+    lastButton12State = reading12;
 
-    if ((millis() - lastDebounceTime) > debounceDelay) {
-        // Button press detected (active low)
-        if (lastButtonState == HIGH && reading == LOW) {
-            buttonPressCount++;
-            if (buttonPressCount == 1) {
-                lastDebounceTime = millis(); // Start timeout for double press
+    // Button 13: spin servo right (180 deg) and toggle light
+    if (reading13 != lastButton13State) {
+        lastDebounce13 = millis();
+    }
+    if ((millis() - lastDebounce13) > debounceDelay) {
+        if (lastButton13State == HIGH && reading13 == LOW) {
+            myServo.write(180);
+            Serial.println("Servo RIGHT (180 deg)");
+            // Toggle light as before
+            if(light == false) {
+                light = true;
+                digitalWrite(2, HIGH); // Turn on light
+                Serial.println("Light turned ON");
+                delay(1000);
+            } else {
+                light = false;
+                digitalWrite(2, LOW); // Turn off light
+                Serial.println("Light turned OFF");
+                delay(1000);
             }
         }
-        // Check for double press
-        if (buttonPressCount > 0 && (millis() - lastDebounceTime) > pressTimeout) {
-            if (buttonPressCount == 2) {
-                Serial.println("Double press detected, toggling explosion!");
-                poopExplode = true; // Set flag for explosion
-            }
-            buttonPressCount = 0; // Reset counter
-        }
     }
-    lastButtonState = reading;
-   
-    // Light control code (unchanged)
-    if(digitalRead(13) == LOW){
-        if(light == false) {
-            light = true;
-            digitalWrite(2, HIGH); // Turn on light
-            Serial.println("Light turned ON");
-            delay(1000);
-        } else {
-            light = false;
-            digitalWrite(2, LOW); // Turn off light
-            Serial.println("Light turned OFF");
-            delay(1000);
-        }
-    }
+    lastButton13State = reading13;
+
     if (light == true) {
         digitalWrite(2, HIGH); // Ensure light is on
     } else {
         digitalWrite(2, LOW); // Ensure light is off
     }
-    // Move servo back and forth very fast
-    if (servoDir) {
-        servoPos += 10;
-        if (servoPos >= 180) {
-            servoPos = 180;
-            servoDir = false;
-        }
-    } else {
-        servoPos -= 10;
-        if (servoPos <= 0) {
-            servoPos = 0;
-            servoDir = true;
-        }
-    }
-    myServo.write(servoPos);
-    delay(2); // Much faster sweep
 
     dnsServer.processNextRequest(); // Needed for captive portal DNS
     server.handleClient();
