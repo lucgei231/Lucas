@@ -5,7 +5,7 @@
 #include <DNSServer.h>
 #include <ESP32Servo.h> // Add this include
 
-//not needed crap
+void startup() {
     const char* ap_ssid = "lucas robot";
     const char* ap_password = ""; // Open network, or set a password if you want
     const byte DNS_PORT = 53;
@@ -20,13 +20,13 @@
     bool staConnected = true;
     String staSSID = "mypotato";
     String staPASS = "mypotato";
+}
 
-    Servo myServo; // Servo object
-    int servoPos = 0;
-    bool servoDir = true;
+Servo myServo; // Servo object
+int servoPos = 0;
+bool servoDir = true;
 
-    // Add a handler for the connect-to-internet form
-    void handleConnectInternet() {
+void handleConnectInternet() {
         String html = R"rawliteral(
         <!DOCTYPE html>
         <html>
@@ -56,8 +56,7 @@
         )rawliteral";
         server.send(200, "text/html", html);
     }
-
-    void handleConnectInternetPost() {
+void handleConnectInternetPost() {
         if (server.hasArg("ssid")) {
             staSSID = server.arg("ssid");
             staPASS = server.arg("pass");
@@ -80,8 +79,7 @@
         server.sendHeader("Location", "/", true);
         server.send(302, "text/plain", "");
     }
-
-    void handleRoot() {
+void handleRoot() {
         String message = R"rawliteral(
     <!DOCTYPE html>
     <html>
@@ -140,19 +138,16 @@
         message.replace("%STA%", staConnected ? "<span class='status-on'>Connected</span>" : "<span class='status-off'>Not Connected</span>");
         server.send(200, "text/html", message);
     }
-
-    // Add handlers for the new buttons
-    void handleToggleLight() {
+void handleToggleLight() {
         light = !light;
         digitalWrite(2, light ? HIGH : LOW);
         server.send(200, "text/plain", "OK");
     }
-    void handleTriggerExplosion() {
+void handleTriggerExplosion() {
         poopExplode = true;
         server.send(200, "text/plain", "OK");
     }
-
-    void handlePoopStatus() {
+void handlePoopStatus() {
         String json = String("{\"poopExplode\":") + (poopExplode ? "true" : "false") + "}";
         poopExplode = false; // Reset after serving
         server.send(200, "application/json", json);
@@ -162,7 +157,7 @@ void setup (){
     Serial.begin(9600);
 
     Serial.println("Booting...");
-
+    startup();
     // Start WiFi in AP mode
     WiFi.softAP(ap_ssid, ap_password);
     delay(100); // Give AP time to start
@@ -256,7 +251,6 @@ void loop (){
     } else {
         digitalWrite(2, LOW); // Ensure light is off
     }
-
     // Move servo back and forth very fast
     if (servoDir) {
         servoPos += 10;
