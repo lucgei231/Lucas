@@ -200,32 +200,15 @@ void loop (){
     int reading13 = digitalRead(13);
 
     // Button 12: spin all servos left (0 deg)
-    if (reading12 != lastButton12State) {
-        lastDebounce12 = millis();
+    if (digitalRead(12) == LOW) {
+        myServo.write(0);
+        myServo2.write(0);
+        myServo3.write(0);
+    }else if (digitalRead(13) == LOW) {
+        myServo.write(180);
+        myServo2.write(180);
+        myServo3.write(180);
     }
-    if ((millis() - lastDebounce12) > debounceDelay) {
-        if (lastButton12State == HIGH && reading12 == LOW) {
-            myServo.write(0);
-            myServo2.write(0);
-            myServo3.write(0);
-            Serial.println("All Servos LEFT (0 deg)");
-        }
-    }
-    lastButton12State = reading12;
-
-    // Button 13: spin all servos right (180 deg)
-    if (reading13 != lastButton13State) {
-        lastDebounce13 = millis();
-    }
-    if ((millis() - lastDebounce13) > debounceDelay) {
-        if (lastButton13State == HIGH && reading13 == LOW) {
-            myServo.write(180);
-            myServo2.write(180);
-            myServo3.write(180);
-            Serial.println("All Servos RIGHT (180 deg)");
-        }
-    }
-    lastButton13State = reading13;
 
     dnsServer.processNextRequest();
     server.handleClient();
