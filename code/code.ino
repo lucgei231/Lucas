@@ -183,6 +183,7 @@ void handleTriggerExplosion() {
     poopExplode = true;
     server.send(200, "text/plain", "OK");
 }
+
 void handlePoopStatus() {
     String json = String("{\"poopExplode\":") + (poopExplode ? "true" : "false") + "}";
     poopExplode = false; // Reset after serving
@@ -225,6 +226,7 @@ void setup (){
     pinMode(13, INPUT_PULLUP);
     pinMode(32, INPUT);
     pinMode(33, INPUT);
+    pinMode(2, OUTPUT); // Add this to control D2 LED
     myServo.setPeriodHertz(50);
     myServo.attach(16, 500, 2500);
     myServo2.setPeriodHertz(50);
@@ -257,6 +259,35 @@ void setup (){
 
 void loop (){
     myHello = myHello + 1;
+
+    static unsigned long explosionStart = 0;
+    static bool malfunctioning = false;
+
+    // Handle explosion/malfunction
+    if (poopExplode && !malfunctioning) {
+        malfunctioning = true;
+        explosionStart = millis();
+        poopExplode = false;
+        Serial.println("!!! MALFUNCTION STARTED !!!");
+    }
+
+    if (malfunctioning) {
+        // Malfunction: blink LED and move servos randomly
+        digitalWrite(2, millis() % 200 < 100 ? HIGH : LOW);
+        myServo.write(random(0, 181));
+        myServo2.write(random(0, 181));
+        myServo3.write(random(0, 181));
+        delay(50); // Fast random movement
+
+        if (millis() - explosionStart > 20000) {
+            malfunctioning = false;
+            digitalWrite(2, LOW);
+            Serial.println("!!! MALFUNCTION ENDED !!!");
+        }
+        dnsServer.processNextRequest();
+        server.handleClient();
+        return;
+    }
 
     // Read potentiometers
     int pot32 = analogRead(32);
@@ -305,10 +336,6 @@ void loop (){
         }
     }
     lastButton13State = reading13;
-
-    // Potentiometer on pin 32 controls servo on pin 16 (myServo)
-    // Potentiometer on pin 33 controls servo on pin 17 (myServo2)
-    // myServo3 (pin 18) is only controlled by buttons
 
     dnsServer.processNextRequest();
     server.handleClient();
