@@ -95,6 +95,8 @@ void handleRoot() {
         .info td { padding: 6px 12px; }
         .btn { font-size: 1.2em; margin: 10px; padding: 10px 30px; border-radius: 8px; border: none; background: #0277bd; color: #fff; cursor: pointer; }
         .btn:active { background: #015a7a; }
+        .slider { width: 200px; }
+        .servo-label { font-weight: bold; color: #0277bd; }
         .status-on { color: green; font-weight: bold; }
         .status-off { color: red; font-weight: bold; }
     </style>
@@ -104,13 +106,33 @@ void handleRoot() {
     <div class="info">
         <table>
             <tr><td><b>myHello Counter:</b></td><td><span id="myHello">%MYHELLO%</span></td></tr>
-            <tr><td><b>Button 12 (Double Press):</b></td><td><span id="btn12">%BTN12%</span></td></tr>
-            <tr><td><b>Button 13 (Servo Right):</b></td><td><span id="btn13">%BTN13%</span></td></tr>
+            <tr><td><b>Button 12 (All Servos 0°):</b></td><td><span id="btn12">%BTN12%</span></td></tr>
+            <tr><td><b>Button 13 (All Servos 180°):</b></td><td><span id="btn13">%BTN13%</span></td></tr>
             <tr><td><b>Explosion Pending:</b></td><td><span id="explosion">%EXPLODE%</span></td></tr>
             <tr><td><b>Uptime (s):</b></td><td><span id="uptime">%UPTIME%</span></td></tr>
             <tr><td><b>AP IP Address:</b></td><td><span id="ip">%IP%</span></td></tr>
             <tr><td><b>Internet Status:</b></td><td><span id="sta">%STA%</span></td></tr>
         </table>
+    </div>
+    <div style="margin:20px;">
+        <div>
+            <span class="servo-label">Servo 1 (Pin 16):</span>
+            <input type="range" min="0" max="180" value="%S1%" class="slider" id="servo1">
+            <span id="servo1val">%S1%</span>°
+            <button class="btn" onclick="setServo(1)">Set</button>
+        </div>
+        <div>
+            <span class="servo-label">Servo 2 (Pin 17):</span>
+            <input type="range" min="0" max="180" value="%S2%" class="slider" id="servo2">
+            <span id="servo2val">%S2%</span>°
+            <button class="btn" onclick="setServo(2)">Set</button>
+        </div>
+        <div>
+            <span class="servo-label">Servo 3 (Pin 18):</span>
+            <input type="range" min="0" max="180" value="%S3%" class="slider" id="servo3">
+            <span id="servo3val">%S3%</span>°
+            <button class="btn" onclick="setServo(3)">Set</button>
+        </div>
     </div>
     <div>
         <button class="btn" onclick="triggerExplosion()">Trigger Explosion</button>
@@ -121,6 +143,17 @@ void handleRoot() {
         function triggerExplosion() {
             fetch('/triggerexplosion', {method: 'POST'}).then(() => setTimeout(()=>location.reload(), 300));
         }
+        function setServo(num) {
+            let val = document.getElementById('servo'+num).value;
+            fetch('/setservo?num='+num+'&val='+val, {method:'POST'})
+                .then(()=>{ document.getElementById('servo'+num+'val').textContent = val; });
+        }
+        // Show slider value live
+        document.querySelectorAll('.slider').forEach(function(slider){
+            slider.oninput = function() {
+                document.getElementById(this.id+'val').textContent = this.value;
+            }
+        });
     </script>
 </body>
 </html>
@@ -132,7 +165,24 @@ void handleRoot() {
     message.replace("%UPTIME%", String(millis() / 1000));
     message.replace("%IP%", WiFi.softAPIP().toString());
     message.replace("%STA%", staConnected ? "<span class='status-on'>Connected</span>" : "<span class='status-off'>Not Connected</span>");
+    message.replace("%S1%", String(myServo.read()));
+    message.replace("%S2%", String(myServo2.read()));
+    message.replace("%S3%", String(myServo3.read()));
     server.send(200, "text/html", message);
+}
+
+// Add handler for /setservo
+void handleSetServo() {
+    if (server.hasArg("num") && server.hasArg("val")) {
+        int num = server.arg("num").toInt();
+        int val = server.arg("val").toInt();
+        if (num == 1) myServo.write(val);
+        else if (num == 2) myServo2.write(val);
+        else if (num == 3) myServo3.write(val);
+        server.send(200, "text/plain", "OK");
+    } else {
+        server.send(400, "text/plain", "Missing args");
+    }
 }
 
 void handleTriggerExplosion() {
@@ -199,6 +249,7 @@ void setup (){
     server.on("/", handleRoot);
     server.on("/poopstatus", handlePoopStatus);
     server.on("/triggerexplosion", HTTP_POST, handleTriggerExplosion);
+    server.on("/setservo", HTTP_POST, handleSetServo);
     server.on("/connectinternet", HTTP_GET, handleConnectInternet);
     server.on("/connectinternet", HTTP_POST, handleConnectInternetPost);
 
