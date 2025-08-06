@@ -119,19 +119,16 @@ void handleRoot() {
             <span class="servo-label">Servo 1 (Pin 16):</span>
             <input type="range" min="0" max="180" value="%S1%" class="slider" id="servo1">
             <span id="servo1val">%S1%</span>°
-            <button class="btn" onclick="setServo(1)">Set</button>
         </div>
         <div>
             <span class="servo-label">Servo 2 (Pin 17):</span>
             <input type="range" min="0" max="180" value="%S2%" class="slider" id="servo2">
             <span id="servo2val">%S2%</span>°
-            <button class="btn" onclick="setServo(2)">Set</button>
         </div>
         <div>
             <span class="servo-label">Servo 3 (Pin 18):</span>
             <input type="range" min="0" max="180" value="%S3%" class="slider" id="servo3">
             <span id="servo3val">%S3%</span>°
-            <button class="btn" onclick="setServo(3)">Set</button>
         </div>
     </div>
     <div>
@@ -143,15 +140,12 @@ void handleRoot() {
         function triggerExplosion() {
             fetch('/triggerexplosion', {method: 'POST'}).then(() => setTimeout(()=>location.reload(), 300));
         }
-        function setServo(num) {
-            let val = document.getElementById('servo'+num).value;
-            fetch('/setservo?num='+num+'&val='+val, {method:'POST'})
-                .then(()=>{ document.getElementById('servo'+num+'val').textContent = val; });
-        }
-        // Show slider value live
+        // Show slider value live and set servo instantly
         document.querySelectorAll('.slider').forEach(function(slider){
             slider.oninput = function() {
                 document.getElementById(this.id+'val').textContent = this.value;
+                let num = this.id.replace('servo','');
+                fetch('/setservo?num='+num+'&val='+this.value, {method:'POST'});
             }
         });
     </script>
