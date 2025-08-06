@@ -25,6 +25,10 @@ Servo myServo3;
 int servoPos = 0;
 bool servoDir = true;
 
+// --- Add these globals for slider/potentiometer logic ---
+unsigned long lastSliderMillis = 0;
+int lastS1 = 0, lastS2 = 0, lastS3 = 0;
+
 // --- Web handlers ---
 void handleConnectInternet() {
     String html = R"rawliteral(
@@ -165,14 +169,32 @@ void handleRoot() {
     server.send(200, "text/html", message);
 }
 
+// --- Suggestions endpoint ---
+void handleSuggestions() {
+    String json = "[";
+    json += "\"Try using the web sliders to control servos.\",";
+    json += "\"Press button 12 to move all servos to 0°.\",";
+    json += "\"Press button 13 to move all servos to 180°.\",";
+    json += "\"Use potentiometers to control servo 2 and 3.\",";
+    json += "\"Trigger explosion for a fun malfunction!\",";
+    json += "\"Connect to your home WiFi via 'Connect to Internet'.\",";
+    json += "\"Check the AP IP address for direct access.\",";
+    json += "\"Monitor uptime and status on the main page.\",";
+    json += "\"Try accessing esp32.local if mDNS works.\",";
+    json += "\"Refresh the page to update all values.\"";
+    json += "]";
+    server.send(200, "application/json", json);
+}
+
 // Add handler for /setservo
 void handleSetServo() {
     if (server.hasArg("num") && server.hasArg("val")) {
         int num = server.arg("num").toInt();
         int val = server.arg("val").toInt();
-        if (num == 1) myServo.write(val);
-        else if (num == 2) myServo2.write(val);
-        else if (num == 3) myServo3.write(val);
+        lastSliderMillis = millis();
+        if (num == 1) { myServo.write(val); lastS1 = val; }
+        else if (num == 2) { myServo2.write(val); lastS2 = val; }
+        else if (num == 3) { myServo3.write(val); lastS3 = val; }
         server.send(200, "text/plain", "OK");
     } else {
         server.send(400, "text/plain", "Missing args");
@@ -248,6 +270,7 @@ void setup (){
     server.on("/setservo", HTTP_POST, handleSetServo);
     server.on("/connectinternet", HTTP_GET, handleConnectInternet);
     server.on("/connectinternet", HTTP_POST, handleConnectInternetPost);
+    server.on("/suggestions", HTTP_GET, handleSuggestions); // <-- Add this line
 
     server.onNotFound([]() {
         server.sendHeader("Location", String("http://192.168.4.1/"), true);
@@ -272,37 +295,54 @@ void loop (){
     }
 
     if (malfunctioning) {
-        // Malfunction: blink LED and move servos randomly
+        // Malfunction: blink LED and move servos randomly, but avoid WDT resets
         digitalWrite(2, millis() % 200 < 100 ? HIGH : LOW);
-        myServo.write(random(0, 181));
-        myServo2.write(random(0, 181));
-        myServo3.write(random(0, 181));
-        delay(50); // Fast random movement
+
+        static unsigned long lastMove = 0;
+        if (millis() - lastMove > 150) { // Move even less frequently
+            int r1 = esp_random() % 181;
+            int r2 = esp_random() % 181;
+            int r3 = esp_random() % 181;
+            myServo.write(r1);
+            myServo2.write(r2);
+            myServo3.write(r3);
+            lastMove = millis();
+        }
+
+        // Only process web and DNS every 10th malfunction loop to reduce load
+        static int webCount = 0;
+        if (++webCount >= 10) {
+            dnsServer.processNextRequest();
+            server.handleClient();
+            webCount = 0;
+        }
+
+        // Call yield() and delay to avoid watchdog resets
+        yield();
+        delay(20);
 
         if (millis() - explosionStart > 20000) {
             malfunctioning = false;
             digitalWrite(2, LOW);
             Serial.println("!!! MALFUNCTION ENDED !!!");
         }
-        dnsServer.processNextRequest();
-        server.handleClient();
-        return;
+        
     }
 
-    // Read potentiometers
+    // --- Potentiometer/slider control logic ---
     int pot32 = analogRead(32);
     int pot33 = analogRead(33);
+    int angle32 = map(pot32, 0, 4095, 180, 0);
+    int angle33 = map(pot33, 0, 4095, 180, 0);
 
-    // Map potentiometer values to servo angles (0-180)
-    int angle32 = map(pot32, 0, 4095, 180, 0); // Invert direction
-    int angle33 = map(pot33, 0, 4095, 180, 0); // Invert direction
+    // Only use potentiometer if no slider used in last 2 seconds
+    if (millis() - lastSliderMillis > 2000) {
+        myServo2.write(angle32);
+        myServo3.write(angle33);
+        myServo.write((angle32 + angle33) / 2);
+    }
 
-    // Control servos with potentiometers
-    myServo2.write(angle32);   // Servo on pin 17 follows pot32
-    myServo3.write(angle33);   // Servo on pin 18 follows pot33
-    myServo.write((angle32 + angle33) / 2); // Servo on pin 16 follows average
-
-    // Button 12: set all servos to 0 deg (overrides pot while pressed)
+    // --- Button 12: set all servos to 0 deg (debounce fix) ---
     static int lastButton12State = HIGH;
     static unsigned long lastDebounce12 = 0;
     const unsigned long debounceDelay = 50;
@@ -311,7 +351,7 @@ void loop (){
         lastDebounce12 = millis();
     }
     if ((millis() - lastDebounce12) > debounceDelay) {
-        if (reading12 == LOW) {
+        if (lastButton12State == HIGH && reading12 == LOW) { // Only on transition
             myServo.write(0);
             myServo2.write(0);
             myServo3.write(0);
@@ -320,7 +360,7 @@ void loop (){
     }
     lastButton12State = reading12;
 
-    // Button 13: set all servos to 180 deg (overrides pot while pressed)
+    // --- Button 13: set all servos to 180 deg (debounce fix) ---
     static int lastButton13State = HIGH;
     static unsigned long lastDebounce13 = 0;
     int reading13 = digitalRead(13);
@@ -328,7 +368,7 @@ void loop (){
         lastDebounce13 = millis();
     }
     if ((millis() - lastDebounce13) > debounceDelay) {
-        if (reading13 == LOW) {
+        if (lastButton13State == HIGH && reading13 == LOW) { // Only on transition
             myServo.write(180);
             myServo2.write(180);
             myServo3.write(180);
