@@ -358,6 +358,7 @@ void loop (){
             Serial.println("All Servos LEFT (0 deg)");
         }
     }
+    
     lastButton12State = reading12;
 
     // --- Button 13: set all servos to 180 deg (debounce fix) ---
