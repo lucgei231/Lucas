@@ -6,7 +6,7 @@
 #include <ESP32Servo.h>
 
 // --- Global variables ---
-const char* ap_ssid = "lucas robot";
+const char* ap_ssid = "crappy wifi";
 const char* ap_password = "";
 const byte DNS_PORT = 53;
 DNSServer dnsServer;
@@ -150,13 +150,32 @@ void setup (){
     Serial.begin(9600);
 
     Serial.println("Booting...");
+
+    // Start AP mode
     WiFi.softAP(ap_ssid, ap_password);
     delay(100);
-    IPAddress myIP = WiFi.softAPIP();
+    IPAddress myAPIP = WiFi.softAPIP();
     Serial.print("AP IP address: ");
-    Serial.println(myIP);
+    Serial.println(myAPIP);
 
-    dnsServer.start(DNS_PORT, "*", myIP);
+    // Start STA mode and connect to WiFi
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.begin("mypotato", "mypotato");
+    Serial.print("Connecting to STA SSID: mypotato");
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println();
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.print("STA connected! IP address: ");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.println("STA connection failed.");
+    }
+
+    dnsServer.start(DNS_PORT, "*", myAPIP);
 
     pinMode(12, INPUT_PULLUP);
     pinMode(13, INPUT_PULLUP);
@@ -169,12 +188,14 @@ void setup (){
     myServo3.setPeriodHertz(50);
     myServo3.attach(18, 500, 2500);
 
+    // Start mDNS for AP and STA
     if (!MDNS.begin("esp32")) {
         Serial.println("Error starting mDNS responder!");
     } else {
         Serial.println("mDNS responder started at esp32.local");
     }
 
+    // Start web server for both AP and STA
     server.on("/", handleRoot);
     server.on("/poopstatus", handlePoopStatus);
     server.on("/triggerexplosion", HTTP_POST, handleTriggerExplosion);
@@ -191,21 +212,59 @@ void setup (){
 
 void loop (){
     myHello = myHello + 1;
-    int mySpin;
 
-    // Button 12: spin all servos left (0 deg
-        Serial.println(mySpin);
+    // Read potentiometers
+    int pot32 = analogRead(32);
+    int pot33 = analogRead(33);
 
+    // Map potentiometer values to servo angles (0-180)
+    int angle32 = map(pot32, 0, 4095, 180, 0); // Invert direction
+    int angle33 = map(pot33, 0, 4095, 180, 0); // Invert direction
 
-        if (analogRead(32) / 20 > 180) {
-            mySpin = analogRead(32) - 180 / 20;
-        } else {
-            mySpin = analogRead(32) / 20;
+    // Control servos with potentiometers
+    myServo2.write(angle32);   // Servo on pin 17 follows pot32
+    myServo3.write(angle33);   // Servo on pin 18 follows pot33
+    myServo.write((angle32 + angle33) / 2); // Servo on pin 16 follows average
+
+    // Button 12: set all servos to 0 deg (overrides pot while pressed)
+    static int lastButton12State = HIGH;
+    static unsigned long lastDebounce12 = 0;
+    const unsigned long debounceDelay = 50;
+    int reading12 = digitalRead(12);
+    if (reading12 != lastButton12State) {
+        lastDebounce12 = millis();
+    }
+    if ((millis() - lastDebounce12) > debounceDelay) {
+        if (reading12 == LOW) {
+            myServo.write(0);
+            myServo2.write(0);
+            myServo3.write(0);
+            Serial.println("All Servos LEFT (0 deg)");
         }
-        myServo.write(mySpin);
-        myServo2.write(mySpin);
-        myServo3.write(mySpin);
+    }
+    lastButton12State = reading12;
 
-    // dnsServer.processNextRequest();
-    // server.handleClient();
+    // Button 13: set all servos to 180 deg (overrides pot while pressed)
+    static int lastButton13State = HIGH;
+    static unsigned long lastDebounce13 = 0;
+    int reading13 = digitalRead(13);
+    if (reading13 != lastButton13State) {
+        lastDebounce13 = millis();
+    }
+    if ((millis() - lastDebounce13) > debounceDelay) {
+        if (reading13 == LOW) {
+            myServo.write(180);
+            myServo2.write(180);
+            myServo3.write(180);
+            Serial.println("All Servos RIGHT (180 deg)");
+        }
+    }
+    lastButton13State = reading13;
+
+    // Potentiometer on pin 32 controls servo on pin 16 (myServo)
+    // Potentiometer on pin 33 controls servo on pin 17 (myServo2)
+    // myServo3 (pin 18) is only controlled by buttons
+
+    dnsServer.processNextRequest();
+    server.handleClient();
 }
