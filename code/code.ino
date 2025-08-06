@@ -160,7 +160,8 @@ void setup (){
 
     pinMode(12, INPUT_PULLUP);
     pinMode(13, INPUT_PULLUP);
-
+    pinMode(32, INPUT);
+    pinMode(33, INPUT);
     myServo.setPeriodHertz(50);
     myServo.attach(16, 500, 2500);
     myServo2.setPeriodHertz(50);
@@ -190,26 +191,21 @@ void setup (){
 
 void loop (){
     myHello = myHello + 1;
-    static int lastButton12State = HIGH;
-    static int lastButton13State = HIGH;
-    static unsigned long lastDebounce12 = 0;
-    static unsigned long lastDebounce13 = 0;
-    const unsigned long debounceDelay = 50; // ms
+    int mySpin;
 
-    int reading12 = digitalRead(12);
-    int reading13 = digitalRead(13);
+    // Button 12: spin all servos left (0 deg
+        Serial.println(mySpin);
 
-    // Button 12: spin all servos left (0 deg)
-    if (digitalRead(12) == LOW) {
-        myServo.write(0);
-        myServo2.write(0);
-        myServo3.write(0);
-    }else if (digitalRead(13) == LOW) {
-        myServo.write(180);
-        myServo2.write(180);
-        myServo3.write(180);
-    }
 
-    dnsServer.processNextRequest();
-    server.handleClient();
+        if (analogRead(32) / 20 > 180) {
+            mySpin = analogRead(32) - 180 / 20;
+        } else {
+            mySpin = analogRead(32) / 20;
+        }
+        myServo.write(mySpin);
+        myServo2.write(mySpin);
+        myServo3.write(mySpin);
+
+    // dnsServer.processNextRequest();
+    // server.handleClient();
 }
