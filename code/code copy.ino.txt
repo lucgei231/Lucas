@@ -311,61 +311,7 @@ void handleRenameSave() {
 // --- Playback state ---
 
 
-void drawSmileyFace() {
-    recordLength = 0;
 
-    auto addFrame = [](int height, int left, int right) {
-        if (recordLength < MAX_RECORD_LENGTH) {
-            recordBuffer[recordLength++] = {height, left, right};
-        }
-    };
-
-    // --- Draw face outline (approximate circle) ---
-    for (int i = 0; i <= 360; i += 15) {
-        int h = 90 + 30 * sin(i * PI / 180);     // height motor
-        int l = 90 + 20 * cos(i * PI / 180);     // left motor
-        int r = 90 - 20 * cos(i * PI / 180);     // right motor
-        addFrame(h, l, r);
-    }
-
-    // --- Pen up (return to center) ---
-    addFrame(90, 90, 90);
-
-    // --- Left eye ---
-    for (int i = 0; i <= 360; i += 30) {
-        int h = 70 + 5 * sin(i * PI / 180);
-        int l = 80 + 5 * cos(i * PI / 180);
-        int r = 100 - 5 * cos(i * PI / 180);
-        addFrame(h, l, r);
-    }
-
-    addFrame(90, 90, 90);
-
-    // --- Right eye ---
-    for (int i = 0; i <= 360; i += 30) {
-        int h = 70 + 5 * sin(i * PI / 180);
-        int l = 100 + 5 * cos(i * PI / 180);
-        int r = 80 - 5 * cos(i * PI / 180);
-        addFrame(h, l, r);
-    }
-
-    addFrame(90, 90, 90);
-
-    // --- Smile arc ---
-    for (int i = 200; i <= 340; i += 10) {
-        int h = 110 + 10 * sin(i * PI / 180);
-        int l = 90 + 15 * cos(i * PI / 180);
-        int r = 90 - 15 * cos(i * PI / 180);
-        addFrame(h, l, r);
-    }
-
-    addFrame(90, 90, 90);
-
-    // Save to slot 0
-    memcpy(saveBuffers[0], recordBuffer, sizeof(ServoFrame) * recordLength);
-    saveLengths[0] = recordLength;
-    Serial.println("Smiley face saved to slot 0!");
-}
 // --- Setup and loop ---
 void setup (){
     Serial.begin(9600);
@@ -430,10 +376,7 @@ void setup (){
     server.on("/listsaves", HTTP_GET, handleListSaves);
     server.on("/loadsave", HTTP_GET, handleLoadSave);
     server.on("/renamesave", HTTP_POST, handleRenameSave);
-    server.on("/drawsmiley", HTTP_GET, []() {
-    drawSmileyFace();
-    server.send(200, "text/plain", "Smiley face saved!");
-});
+
     server.onNotFound([]() {
         server.sendHeader("Location", String("http://192.168.4.1/"), true);
         server.send(302, "text/plain", "");
