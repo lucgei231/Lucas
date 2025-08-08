@@ -21,8 +21,8 @@ bool poopExplode = false;
 WebServer server(80);
 
 bool staConnected = true;
-String staSSID = "mypotato";
-String staPASS = "mypotato";
+String staSSID = "VM6842809";
+String staPASS = "h2hFnrycpprn";
 
 Servo myServo;
 Servo myServo2;
@@ -382,8 +382,8 @@ void setup (){
 
     // Start STA mode and connect to WiFi
     WiFi.mode(WIFI_AP_STA);
-    WiFi.begin("mypotato", "mypotato");
-    Serial.print("Connecting to STA SSID: mypotato");
+    WiFi.begin("VM6842809", "h2hFnrycpprn");
+    Serial.print("Connecting to STA SSID: VM6842809");
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
         delay(500);
