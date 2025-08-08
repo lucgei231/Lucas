@@ -57,6 +57,10 @@ void calculate_angles(float x, float y) {
 
   distance1 = sqrt((OFFSET1 - x) * (OFFSET1 - x) + (YAXIS - y) * (YAXIS - y));
   distance2 = sqrt((OFFSET2 - x) * (OFFSET2 - x) + (YAXIS - y) * (YAXIS - y));
+
+  // Clamp for acos domain
+  float arg1 = distance1 / (LENGTH_1 + LENGTH_2);
+  float arg2 = distance2 / (LENGTH_1 + LENGTH_2);
   arg1 = constrain(arg1, -1.0, 1.0);
   arg2 = constrain(arg2, -1.0, 1.0);
 
@@ -74,15 +78,15 @@ void calculate_angles(float x, float y) {
     angle2 = PI - acos(arg2) + atan((OFFSET2 - x) / (YAXIS - y)); //radians
   }
 
-
-    //   // ----- calculate steps required to reach (x,y) from 12 o'clock
-    //   STEPS1 = round(angle1 * RAD_TO_DEG * STEPS_PER_DEG);
-    //   STEPS2 = round(angle2 * RAD_TO_DEG * STEPS_PER_DEG);
     angle1 = angle1 * RAD_TO_DEG;
     angle2 = angle2 * RAD_TO_DEG;
+    Serial.println(distance1);
+    Serial.println(distance2);
+    Serial.println(acos(arg1) + atan((OFFSET1 - x) / (YAXIS - y)));
+    Serial.println(acos(arg2) + atan((OFFSET2 - x) / (YAXIS - y)));
     Serial.print("Move to: ");
     Serial.print(angle1);
-    Serial.print(", ");
+    Serial.print(" , ");
     Serial.println(angle2);
 
     angle1 = (270 - angle1);

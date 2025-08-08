@@ -269,23 +269,59 @@ void handleListSaves() {
         if (saveLengths[i] > 0) {
             html += "<li>" + String(saveNames[i]) + " (" + String(saveLengths[i]) + " frames) ";
             html += "<button onclick=\"location.href='/loadsave?slot=" + String(i) + "'\">Load</button> ";
-            html += "<button onclick=\"renameSave(" + String(i) + ")\">Rename</button></li>";
+            html += "<button onclick=\"renameSave(" + String(i) + ")\">Rename</button> ";
+            html += "<button onclick=\"location.href='/downloadsave?slot=" + String(i) + "'\">Download</button> ";
+        } else {
+            html += "<li>Empty ";
         }
+        // Upload form for each slot
+        html += "<form style='display:inline' enctype='multipart/form-data' method='POST' action='/uploadsave?slot=" + String(i) + "' onsubmit='return uploadSave(this," + String(i) + ")'>";
+        html += "<input type='file' name='file' accept='.txt' style='width:120px'>";
+        html += "<input type='submit' value='Upload'>";
+        html += "</form></li>";
     }
-    html += "</ul><script>function renameSave(i){var n=prompt('New name:');if(n)fetch('/renamesave?slot='+i+'&name='+encodeURIComponent(n),{method:'POST'}).then(()=>location.reload());}</script>";
-    html += "<button onclick=\"location.href='/'\">Back</button></body></html>";
+    html += "</ul>";
+    html += "<button onclick=\"location.href='/'\">Back</button>";
+    // JS for AJAX upload
+    html += R"(
+<script>
+function renameSave(i){
+    var n=prompt('New name:');
+    if(n)fetch('/renamesave?slot='+i+'&name='+encodeURIComponent(n),{method:'POST'}).then(()=>location.reload());
+}
+function uploadSave(form,slot){
+    var file = form.file.files[0];
+    if(!file) return false;
+    var reader = new FileReader();
+    reader.onload = function(e){
+        fetch('/uploadsave?slot='+slot, {
+            method:'POST',
+            headers:{'Content-Type':'text/plain'},
+            body:e.target.result
+        }).then(()=>location.reload());
+    };
+    reader.readAsText(file);
+    return false;
+}
+</script>
+)";
+    html += "</body></html>";
     server.send(200, "text/html", html);
 }
 
-void handleLoadSave() {
+// --- Download save as .txt ---
+void handleDownloadSave() {
     if (server.hasArg("slot")) {
         int slot = server.arg("slot").toInt();
         if (slot >= 0 && slot < MAX_SAVES && saveLengths[slot] > 0) {
-            // Playback in loop (set a flag)
-            playbackSlot = slot;
-            playbackIndex = 0;
-            playbackActive = true;
-            server.send(200, "text/plain", "Playback started for " + String(saveNames[slot]));
+            String txt = "";
+            for (int i = 0; i < saveLengths[slot]; i++) {
+                txt += String(saveBuffers[slot][i].s1) + "," +
+                       String(saveBuffers[slot][i].s2) + "," +
+                       String(saveBuffers[slot][i].s3) + "\n";
+            }
+            server.sendHeader("Content-Disposition", "attachment; filename=" + String(saveNames[slot]) + ".txt");
+            server.send(200, "text/plain", txt);
         } else {
             server.send(400, "text/plain", "Invalid slot");
         }
@@ -294,18 +330,41 @@ void handleLoadSave() {
     }
 }
 
-void handleRenameSave() {
-    if (server.hasArg("slot") && server.hasArg("name")) {
+// --- Upload save from .txt ---
+void handleUploadSave() {
+    if (server.hasArg("slot") && server.hasArg("plain")) {
         int slot = server.arg("slot").toInt();
-        String newName = server.arg("name");
-        if (slot >= 0 && slot < MAX_SAVES && saveLengths[slot] > 0) {
-            saveNames[slot] = strdup(newName.c_str());
-            server.send(200, "text/plain", "Renamed");
+        String body = server.arg("plain");
+        if (slot >= 0 && slot < MAX_SAVES) {
+            int idx = 0;
+            int len = 0;
+            ServoFrame temp[MAX_RECORD_LENGTH];
+            while (idx < body.length() && len < MAX_RECORD_LENGTH) {
+                int nl = body.indexOf('\n', idx);
+                if (nl == -1) nl = body.length();
+                String line = body.substring(idx, nl);
+                int c1 = line.indexOf(',');
+                int c2 = line.lastIndexOf(',');
+                if (c1 > 0 && c2 > c1) {
+                    int s1 = line.substring(0, c1).toInt();
+                    int s2 = line.substring(c1+1, c2).toInt();
+                    int s3 = line.substring(c2+1).toInt();
+                    temp[len++] = {s1, s2, s3};
+                }
+                idx = nl + 1;
+            }
+            if (len > 0) {
+                memcpy(saveBuffers[slot], temp, sizeof(ServoFrame) * len);
+                saveLengths[slot] = len;
+                server.send(200, "text/plain", "Upload OK (" + String(len) + " frames)");
+            } else {
+                server.send(400, "text/plain", "No valid frames");
+            }
         } else {
             server.send(400, "text/plain", "Invalid slot");
         }
     } else {
-        server.send(400, "text/plain", "Missing args");
+        server.send(400, "text/plain", "Missing slot or file");
     }
 }
 
@@ -435,6 +494,8 @@ void setup (){
     drawSmileyFace();
     server.send(200, "text/plain", "Smiley face saved!");
 });
+    server.on("/downloadsave", HTTP_GET, handleDownloadSave);
+    server.on("/uploadsave", HTTP_POST, handleUploadSave);
     server.onNotFound([]() {
         server.sendHeader("Location", String("http://192.168.4.1/"), true);
         server.send(302, "text/plain", "");
@@ -574,4 +635,36 @@ if (!playbackActive && millis() - lastSliderMillis > 2000) {
 
     dnsServer.processNextRequest();
     server.handleClient();
+}
+
+void handleLoadSave() {
+    if (server.hasArg("slot")) {
+        int slot = server.arg("slot").toInt();
+        if (slot >= 0 && slot < MAX_SAVES && saveLengths[slot] > 0) {
+            // Playback in loop (set a flag)
+            playbackSlot = slot;
+            playbackIndex = 0;
+            playbackActive = true;
+            server.send(200, "text/plain", "Playback started for " + String(saveNames[slot]));
+        } else {
+            server.send(400, "text/plain", "Invalid slot");
+        }
+    } else {
+        server.send(400, "text/plain", "Missing slot");
+    }
+}
+
+void handleRenameSave() {
+    if (server.hasArg("slot") && server.hasArg("name")) {
+        int slot = server.arg("slot").toInt();
+        String newName = server.arg("name");
+        if (slot >= 0 && slot < MAX_SAVES && saveLengths[slot] > 0) {
+            saveNames[slot] = strdup(newName.c_str());
+            server.send(200, "text/plain", "Renamed");
+        } else {
+            server.send(400, "text/plain", "Invalid slot");
+        }
+    } else {
+        server.send(400, "text/plain", "Missing args");
+    }
 }
