@@ -8,7 +8,7 @@ Servo myServo3;
 
 float OFFSET1 = 24;                      //motor1 offset along x_axis
 float OFFSET2 = 62;                      //motor2 offset along x_axis
-float YAXIS = 0;                        //motor heights above (0,0)
+float YAXIS = 75;                        //motor heights above (0,0)
 float LENGTH_1 = 41;                       //length of short arm-segment
 float LENGTH_2 = 50;                       //length of long arm-segment
 
@@ -21,7 +21,8 @@ int THIS_X = 0;                         //this X co-ordinate (rounded)
 int THIS_Y = 0;                         //this Y co-ordinate (rounded)
 int LAST_X = 0;                         //last X co-ordinate (rounded)
 int LAST_Y = 0;                         //last Y co-ordinate (rounded)
-
+int last_pot_1 = 0;
+int last_pot_2 = 0;
 
 
 // --- Setup and loop ---
@@ -67,8 +68,6 @@ void calculate_angles(float x, float y) {
     angle2 = PI - acos(distance2 / (LENGTH_1 + LENGTH_2)) + atan((OFFSET2 - x) / (YAXIS - y)); //radians
   }
 
-  angle1 = (270 - angle1);
-  angle2 = (270 - angle2);
 
     //   // ----- calculate steps required to reach (x,y) from 12 o'clock
     //   STEPS1 = round(angle1 * RAD_TO_DEG * STEPS_PER_DEG);
@@ -76,7 +75,13 @@ void calculate_angles(float x, float y) {
     Serial.print("Move to: ");
     Serial.print(angle1);
     Serial.print(" , ");
-    Serial.println(angle1);
+    Serial.println(angle2);
+
+    angle1 = (270 - angle1);
+    angle2 = (270 - angle2);
+    Serial.print(angle1);
+    Serial.print(" , ");
+    Serial.println(angle2);
     
 }
 
@@ -84,11 +89,19 @@ void loop (){
     // --- Potentiometer/slider control logic ---
     int pot32 = analogRead(32);
     int pot33 = analogRead(33);
-    int angle32 = map(pot32, 0, 4095, 180, 0);
-    int angle33 = map(pot33, 0, 4095, 180, 0);
 
-    myServo2.write(angle32);
-    myServo3.write(angle33);
+    int angle32 = map(pot32, 0, 4095, 180, 0);
+    // If the difference between pot32 and last_pot_1 is more than 5, update the servo position
+    if (abs(pot32 - last_pot_1) > 20) {
+        myServo2.write(angle32);
+    }
+
+
+    int angle33 = map(pot33, 0, 4095, 180, 0);
+    // If the difference between pot33 and last_pot_2 is more than 5, update the servo position
+    if (abs(pot33 - last_pot_2) > 20) {
+        myServo3.write(angle33);
+    }
 
     Serial.print("Potentiometer Values: ");
     Serial.print(pot32);
@@ -101,5 +114,8 @@ void loop (){
     Serial.println(angle33);
 
     calculate_angles(0.0, 0.0);
-    delay(200);
+    // delay(100);
+
+    last_pot_1 = pot32;
+    last_pot_2 = pot33;
 }
