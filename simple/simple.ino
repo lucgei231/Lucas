@@ -6,10 +6,14 @@ Servo myServo;
 Servo myServo2;
 Servo myServo3;
 
-float OFFSET1 = 115;                      //motor1 offset along x_axis
-float OFFSET2 = 180;                      //motor2 offset along x_axis
-float YAXIS = 465;                        //motor heights above (0,0)
-float LENGTH = 255;                       //length of each arm-segment
+float OFFSET1 = 24;                      //motor1 offset along x_axis
+float OFFSET2 = 62;                      //motor2 offset along x_axis
+float YAXIS = 0;                        //motor heights above (0,0)
+float LENGTH_1 = 41;                       //length of short arm-segment
+float LENGTH_2 = 50;                       //length of long arm-segment
+
+
+float LENGTH = 100;                       //length of each arm-segment
 float SCALE_FACTOR = 1;                   //drawing scale (1 = 100%)
 float ARC_MAX = 2;                        //maximum arc-length (controls smoothness)
 
@@ -39,11 +43,7 @@ void setup (){
     myServo3.attach(18, 500, 2500);
 }
 
-/*
-  This routine calculates the the number of motor steps to reach (x,y) from 12 o'clock .
-  Global variables STEPS1, STEPS2 hold the required number of steps
-*/
-void calculate_steps(float x, float y) {
+void calculate_angles(float x, float y) {
 
   float distance1;            //pen distance to motor1
   float distance2;            //pen distance to motor2
@@ -55,21 +55,29 @@ void calculate_steps(float x, float y) {
 
   // ----- calculate motor1 angle when pen at (x,y)
   if (x > OFFSET1) {
-    angle1 = PI + acos(distance1 / (2 * LENGTH)) - atan((x - OFFSET1) / (YAXIS - y)); //radians
+    angle1 = PI + acos(distance1 / (LENGTH_1 + LENGTH_2)) - atan((x - OFFSET1) / (YAXIS - y)); //radians
   } else {
-    angle1 = PI + acos(distance1 / (2 * LENGTH)) + atan((OFFSET1 - x) / (YAXIS - y)); //radians
+    angle1 = PI + acos(distance1 / (LENGTH_1 + LENGTH_2)) + atan((OFFSET1 - x) / (YAXIS - y)); //radians
   }
 
   // ----- calculate motor2 angle when pen at start position (0,0)
   if (x > OFFSET2) {
-    angle2 = PI - acos(distance2 / (2 * LENGTH)) - atan((x - OFFSET2) / (YAXIS - y)); //radians
+    angle2 = PI - acos(distance2 / (LENGTH_1 + LENGTH_2)) - atan((x - OFFSET2) / (YAXIS - y)); //radians
   } else {
-    angle2 = PI - acos(distance2 / (2 * LENGTH)) + atan((OFFSET2 - x) / (YAXIS - y)); //radians
+    angle2 = PI - acos(distance2 / (LENGTH_1 + LENGTH_2)) + atan((OFFSET2 - x) / (YAXIS - y)); //radians
   }
 
-  // ----- calculate steps required to reach (x,y) from 12 o'clock
-  STEPS1 = round(angle1 * RAD_TO_DEG * STEPS_PER_DEG);
-  STEPS2 = round(angle2 * RAD_TO_DEG * STEPS_PER_DEG);
+  angle1 = (270 - angle1);
+  angle2 = (270 - angle2);
+
+    //   // ----- calculate steps required to reach (x,y) from 12 o'clock
+    //   STEPS1 = round(angle1 * RAD_TO_DEG * STEPS_PER_DEG);
+    //   STEPS2 = round(angle2 * RAD_TO_DEG * STEPS_PER_DEG);
+    Serial.print("Move to: ");
+    Serial.print(angle1);
+    Serial.print(" , ");
+    Serial.println(angle1);
+    
 }
 
 void loop (){
@@ -92,4 +100,6 @@ void loop (){
     Serial.print(" , ");
     Serial.println(angle33);
 
+    calculate_angles(0.0, 0.0);
+    delay(200);
 }
