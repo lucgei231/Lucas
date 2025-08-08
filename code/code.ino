@@ -239,6 +239,7 @@ void handlePoopStatus() {
     server.send(200, "application/json", json);
 }
 
+
 void handleStartRecording() {
     isRecording = true;
     recordLength = 0;
