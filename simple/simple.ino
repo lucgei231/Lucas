@@ -57,6 +57,8 @@ void calculate_angles(float x, float y) {
 
   distance1 = sqrt((OFFSET1 - x) * (OFFSET1 - x) + (YAXIS - y) * (YAXIS - y));
   distance2 = sqrt((OFFSET2 - x) * (OFFSET2 - x) + (YAXIS - y) * (YAXIS - y));
+  float arg1 = distance1 / (LENGTH_1 + LENGTH_2);
+  float arg2 = distance2 / (LENGTH_1 + LENGTH_2);
   arg1 = constrain(arg1, -1.0, 1.0);
   arg2 = constrain(arg2, -1.0, 1.0);
 
@@ -90,7 +92,9 @@ void calculate_angles(float x, float y) {
     Serial.print(angle1);
     Serial.print(" , ");
     Serial.println(angle2);
-    
+
+    myServo2.write(angle2);
+    myServo3.write(angle1);
 }
 
 void loop (){
@@ -98,31 +102,38 @@ void loop (){
     int pot32 = analogRead(32);
     int pot33 = analogRead(33);
 
-    int angle32 = map(pot32, 0, 4095, 180, 0);
+    // int angle32 = map(pot32, 0, 4095, 180, 0);
     // If the difference between pot32 and last_pot_1 is more than 5, update the servo position
-    if (abs(pot32 - last_pot_1) > 20) {
-        myServo2.write(angle32);
-    }
+    // if (abs(pot32 - last_pot_1) > 20) {
+    //     myServo2.write(angle32);
+    // }
 
 
-    int angle33 = map(pot33, 0, 4095, 180, 0);
+    // int angle33 = map(pot33, 0, 4095, 180, 0);
     // If the difference between pot33 and last_pot_2 is more than 5, update the servo position
-    if (abs(pot33 - last_pot_2) > 20) {
-        myServo3.write(angle33);
+    // if (abs(pot33 - last_pot_2) > 20) {
+    //     myServo3.write(angle33);
+    // }
+
+    // Serial.print("Potentiometer Values: ");
+    // Serial.print(pot32);
+    // Serial.print(" , ");
+    // Serial.println(pot33);
+
+    // Serial.print("Angle Values: ");
+    // Serial.print(angle32);
+    // Serial.print(" , ");
+    // Serial.println(angle33);
+
+    delay(1000);
+    for (int i = 0; i < 40; i++) {
+      calculate_angles(10, 10 + i);
+      delay(100);
     }
-
-    Serial.print("Potentiometer Values: ");
-    Serial.print(pot32);
-    Serial.print(" , ");
-    Serial.println(pot33);
-
-    Serial.print("Angle Values: ");
-    Serial.print(angle32);
-    Serial.print(" , ");
-    Serial.println(angle33);
-
-    calculate_angles(0.0, 0.0);
-    // delay(100);
+    for (int i = 0; i < 40; i++) {
+      calculate_angles(10 + i, 50);
+      delay(100);
+    }
 
     last_pot_1 = pot32;
     last_pot_2 = pot33;
